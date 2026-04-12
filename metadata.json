@@ -1,0 +1,8 @@
+{
+  "name": "Shopioo",
+  "description": "Instant product listing using AI vision to automatically extract details from product photos.",
+  "requestFramePermissions": [
+    "camera",
+    "geolocation"
+  ]
+}
