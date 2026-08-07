@@ -1,5 +1,5 @@
 import React from 'react';
-import { Home, PlayCircle, LayoutGrid, User, ShoppingCart } from 'lucide-react';
+import { Home, LayoutGrid, User, ShoppingCart, Heart } from 'lucide-react';
 
 interface BottomNavProps {
   activeTab: string;
@@ -27,11 +27,10 @@ const AILogo = (props: React.SVGProps<SVGSVGElement>) => (
 export const BottomNav: React.FC<BottomNavProps> = ({ activeTab, setActiveTab }) => {
   const navItems = [
     { id: 'home', label: 'Home', icon: Home },
-    { id: 'play', label: 'Play', icon: PlayCircle },
     { id: 'categories', label: 'Categories', icon: LayoutGrid },
-    { id: 'account', label: 'Account', icon: User },
-    { id: 'cart', label: 'Cart', icon: ShoppingCart },
     { id: 'ai-chat', label: 'Ask AI', icon: AILogo, isSpecial: true },
+    { id: 'cart', label: 'Cart', icon: ShoppingCart },
+    { id: 'account', label: 'Account', icon: User },
   ];
 
   return (

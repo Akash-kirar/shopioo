@@ -3,9 +3,9 @@ import { CameraView } from './CameraView';
 import { AnalyzingLoader } from './AnalyzingLoader';
 import { ProductForm } from './ProductForm';
 import { ProductData, ListingStep } from '../types';
-import { analyzeProductImage, enhanceProductImage, fileToGenerativePart, generateProductVariations } from '../services/geminiService';
+import { analyzeProductImage, fileToGenerativePart } from '../services/geminiService';
 import { CheckCircle, ArrowRight, X, ArrowLeft, Sparkles } from 'lucide-react';
-import { saveItem } from '../utils';
+import { saveItem, compressImage } from '../utils';
 
 interface SmartListerProps {
   shopId?: string;
@@ -17,20 +17,20 @@ export const SmartLister: React.FC<SmartListerProps> = ({ shopId, onClose, onSuc
   const [step, setStep] = useState<ListingStep['current']>('capture');
   const [productData, setProductData] = useState<ProductData | null>(null);
   const [imagePreview, setImagePreview] = useState<string | null>(null);
-  const [enhancedImage, setEnhancedImage] = useState<string | null>(null);
-  const [generatedVariations, setGeneratedVariations] = useState<string[]>([]);
-  const [isEnhancing, setIsEnhancing] = useState(false);
+  
+  const [originalImageBase64, setOriginalImageBase64] = useState<string | null>(null);
 
   const handleCapture = async (file: File) => {
     // 1. Show preview
     const previewUrl = URL.createObjectURL(file);
     setImagePreview(previewUrl);
     setStep('analyzing');
-    setIsEnhancing(true);
+    
 
     try {
       // 2. Convert to Base64 for Gemini
       const base64Data = await fileToGenerativePart(file);
+      setOriginalImageBase64('data:' + file.type + ';base64,' + base64Data);
       
       // 3. Start AI Services
       // Prioritize text analysis to unblock the user UI quickly ("fast and under 10s")
@@ -46,72 +46,62 @@ export const SmartLister: React.FC<SmartListerProps> = ({ shopId, onClose, onSuc
       // We start these ONLY after analysis is done to prevent "rate limit" spikes
       // caused by firing 3 high-compute requests simultaneously.
       
-      (async () => {
-        try {
-          const enhancedImgBase64 = await enhanceProductImage(base64Data, file.type);
-          if (enhancedImgBase64) {
-            setEnhancedImage(`data:image/png;base64,${enhancedImgBase64}`);
-          }
-        } catch (err) {
-          console.error("Background enhancement failed", err);
-        }
-
-        // Add a small delay between enhancement and variations
-        await new Promise(resolve => setTimeout(resolve, 3000));
-
-        try {
-          const variations = await generateProductVariations(base64Data, file.type);
-          if (variations.length > 0) {
-            setGeneratedVariations(variations.map(v => `data:image/png;base64,${v}`));
-          }
-        } catch (err) {
-          console.error("Background variations failed", err);
-        } finally {
-          setIsEnhancing(false);
-        }
-      })();
+      
 
     } catch (error) {
       console.error("Failed to analyze", error);
       alert("Something went wrong with the AI analysis. Please try again.");
       setStep('capture');
-      setIsEnhancing(false);
+      
     }
   };
 
-  const handleSave = async (finalData: ProductData) => {
-    const itemToSave = {
-        id: Date.now().toString(),
-        shopId: shopId || 'smart_listing',
-        name: finalData.title,
-        price: `₹${finalData.price}`,
-        image: enhancedImage || imagePreview || '', // Prefer enhanced image
-        category: finalData.category,
-        description: finalData.description,
-        tag: finalData.tags[0],
-        originalPrice: finalData.condition === 'New' ? undefined : `₹${Math.round(finalData.price * 1.2)}` // Mock original price for deals
-    };
-    await saveItem(itemToSave);
+  const handleSave = async (finalData: ProductData, finalImage: string | null) => {
+    try {
+        let imageToSave = finalImage || originalImageBase64 || '';
+        if (imageToSave === imagePreview) {
+            imageToSave = originalImageBase64 || '';
+        }
+        
+        if (imageToSave && imageToSave.startsWith('data:')) {
+            imageToSave = await compressImage(imageToSave, 600, 0.6);
+        }
 
-    setStep('success');
+        const itemToSave = {
+            id: Date.now().toString(),
+            shopId: shopId || 'smart_listing',
+            name: finalData.title,
+            price: `₹${finalData.price}`,
+            image: imageToSave,
+            category: finalData.category,
+            description: finalData.description,
+            tag: finalData.tags[0],
+            ...(finalData.condition !== 'New' ? { originalPrice: `₹${Math.round(finalData.price * 1.2)}` } : {})
+        };
+        await saveItem(itemToSave);
+        setStep('success');
+    } catch (e) {
+        console.error("Save failed", e);
+        alert("Failed to save product. The image might be too large.");
+    }
   };
 
   const handleRetake = () => {
     setProductData(null);
     setImagePreview(null);
-    setEnhancedImage(null);
-    setGeneratedVariations([]);
+      setOriginalImageBase64(null);
+    
     setStep('capture');
-    setIsEnhancing(false);
+    
   };
 
   const handleReset = () => {
       setStep('capture');
       setProductData(null);
       setImagePreview(null);
-      setEnhancedImage(null);
-      setGeneratedVariations([]);
-      setIsEnhancing(false);
+      setOriginalImageBase64(null);
+      
+      
   }
 
   return (
@@ -129,16 +119,6 @@ export const SmartLister: React.FC<SmartListerProps> = ({ shopId, onClose, onSuc
                    <Sparkles className="w-6 h-6" /> AI Listing
                 </h1>
             </div>
-            
-            {step !== 'success' && (
-                <div className="flex items-center gap-2 md:gap-4 text-[10px] md:text-sm font-medium text-gray-500">
-                    <span className={`transition-colors ${step === 'capture' ? 'text-[#a82283] font-bold' : ''}`}>1. Upload</span>
-                    <ArrowRight size={12} className="text-gray-300" />
-                    <span className={`transition-colors ${step === 'analyzing' ? 'text-[#a82283] font-bold' : ''}`}>2. AI Analysis</span>
-                    <ArrowRight size={12} className="text-gray-300" />
-                    <span className={`transition-colors ${step === 'review' ? 'text-[#a82283] font-bold' : ''}`}>3. Review</span>
-                </div>
-            )}
         </div>
       </div>
 
@@ -170,14 +150,13 @@ export const SmartLister: React.FC<SmartListerProps> = ({ shopId, onClose, onSuc
                     <h2 className="text-2xl font-bold text-gray-900">Review Listing</h2>
                     <p className="text-gray-500 text-sm flex items-center justify-center gap-2">
                         AI has drafted your listing. 
-                        {isEnhancing && <span className="text-indigo-600 font-bold flex items-center gap-1 animate-pulse"><Sparkles size={12}/> Enhancing images...</span>}
+                        
                     </p>
                 </div>
                 <ProductForm 
                     initialData={productData} 
                     imagePreview={imagePreview}
-                    enhancedImagePreview={enhancedImage}
-                    generatedVariations={generatedVariations}
+                    
                     onSave={handleSave}
                     onRetake={handleRetake}
                 />

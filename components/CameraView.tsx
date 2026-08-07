@@ -1,6 +1,6 @@
 import React, { useRef, useState } from 'react';
-import { Camera, Image as ImageIcon } from 'lucide-react';
-import { WebcamCapture } from './WebcamCapture';
+import { Camera, Image as ImageIcon, ArrowRight } from 'lucide-react';
+
 
 interface CameraViewProps {
   onCapture: (file: File) => void;
@@ -8,7 +8,7 @@ interface CameraViewProps {
 
 export const CameraView: React.FC<CameraViewProps> = ({ onCapture }) => {
   const galleryInputRef = useRef<HTMLInputElement>(null);
-  const [showWebcam, setShowWebcam] = useState(false);
+  const nativeCameraInputRef = useRef<HTMLInputElement>(null);
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files[0]) {
@@ -29,10 +29,7 @@ export const CameraView: React.FC<CameraViewProps> = ({ onCapture }) => {
       e.preventDefault();
   };
 
-  const handleWebcamCapture = (file: File) => {
-      onCapture(file);
-      setShowWebcam(false);
-  };
+
 
   return (
     <>
@@ -42,6 +39,13 @@ export const CameraView: React.FC<CameraViewProps> = ({ onCapture }) => {
             onDragOver={handleDragOver}
         >
             <div className="text-center p-8 animate-in fade-in zoom-in duration-300 w-full max-w-sm">
+                <div className="flex items-center justify-center gap-2 md:gap-4 text-[10px] md:text-sm font-medium text-gray-500 mb-8">
+                    <span className="text-[#a82283] font-bold">1. Upload</span>
+                    <ArrowRight size={12} className="text-gray-300" />
+                    <span>2. AI Analysis</span>
+                    <ArrowRight size={12} className="text-gray-300" />
+                    <span>3. Review</span>
+                </div>
                 <div className="w-24 h-24 bg-white text-[#a82283] rounded-full flex items-center justify-center mx-auto mb-6 shadow-md border border-purple-100">
                     <Camera size={48} />
                 </div>
@@ -53,7 +57,7 @@ export const CameraView: React.FC<CameraViewProps> = ({ onCapture }) => {
                 <div className="flex flex-col gap-3">
                     <button
                         type="button"
-                        onClick={() => setShowWebcam(true)}
+                        onClick={() => nativeCameraInputRef.current?.click()}
                         className="w-full bg-[#a82283] text-white px-6 py-4 rounded-xl font-bold shadow-lg hover:bg-[#8a1c6b] transition-all flex items-center justify-center gap-3 active:scale-[0.98]"
                     >
                         <Camera size={20} />
@@ -77,14 +81,15 @@ export const CameraView: React.FC<CameraViewProps> = ({ onCapture }) => {
                 accept="image/*"
                 className="hidden"
             />
-        </div>
-
-        {showWebcam && (
-            <WebcamCapture 
-                onCapture={handleWebcamCapture} 
-                onClose={() => setShowWebcam(false)} 
+            <input
+                type="file"
+                ref={nativeCameraInputRef}
+                onChange={handleFileChange}
+                accept="image/*"
+                capture="environment"
+                className="hidden"
             />
-        )}
+        </div>
     </>
   );
 };

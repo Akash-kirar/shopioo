@@ -5,30 +5,22 @@ import { Tag, IndianRupee, Layers, Type, Palette, Sparkles, Image as ImageIcon, 
 interface ProductFormProps {
   initialData: ProductData;
   imagePreview: string | null;
-  enhancedImagePreview: string | null;
-  generatedVariations?: string[];
-  onSave: (data: ProductData) => void;
+  
+  onSave: (data: ProductData, finalImage: string | null) => void;
   onRetake: () => void;
 }
 
 export const ProductForm: React.FC<ProductFormProps> = ({ 
     initialData, 
     imagePreview, 
-    enhancedImagePreview, 
-    generatedVariations = [],
+    
     onSave, 
     onRetake 
 }) => {
   const [formData, setFormData] = React.useState<ProductData>(initialData);
   // Main display image state
-  const [activeImage, setActiveImage] = useState<string | null>(enhancedImagePreview || imagePreview);
+  const [activeImage, setActiveImage] = useState<string | null>(imagePreview);
 
-  // Auto-switch to enhanced image when it arrives, if the user is looking at the original
-  useEffect(() => {
-    if (enhancedImagePreview && activeImage === imagePreview) {
-        setActiveImage(enhancedImagePreview);
-    }
-  }, [enhancedImagePreview, imagePreview, activeImage]);
 
   const handleChange = (field: keyof ProductData, value: string | number | string[]) => {
     setFormData(prev => ({ ...prev, [field]: value }));
@@ -54,7 +46,7 @@ export const ProductForm: React.FC<ProductFormProps> = ({
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    onSave(formData);
+    onSave(formData, activeImage);
   };
 
   return (
@@ -70,66 +62,10 @@ export const ProductForm: React.FC<ProductFormProps> = ({
                     )}
                     
                     {/* Badge if it's the enhanced one */}
-                    {activeImage === enhancedImagePreview && (
-                        <div className="absolute top-2 right-2 bg-indigo-600 text-white text-[10px] px-2 py-0.5 rounded-full font-bold shadow-sm flex items-center gap-1 animate-in zoom-in">
-                            <Sparkles size={10} /> ENHANCED
-                        </div>
-                    )}
+                    
                 </div>
 
-                {/* Gallery / Variations */}
-                <div className="mb-4">
-                    <h4 className="text-xs font-semibold text-gray-500 mb-2 uppercase tracking-wider flex justify-between items-center">
-                        <span>AI Assets</span>
-                        {(!enhancedImagePreview || generatedVariations.length === 0) && (
-                            <span className="text-[10px] flex items-center gap-1 text-indigo-500 animate-pulse">
-                                <Loader2 size={10} className="animate-spin" /> Generating...
-                            </span>
-                        )}
-                    </h4>
-                    <div className="grid grid-cols-4 gap-2">
-                        {/* Original */}
-                        {imagePreview && (
-                             <button
-                                type="button"
-                                onClick={() => setActiveImage(imagePreview)}
-                                className={`aspect-square rounded-lg overflow-hidden border-2 transition-all ${activeImage === imagePreview ? 'border-indigo-600 ring-2 ring-indigo-100' : 'border-gray-200 hover:border-gray-300'}`}
-                             >
-                                <img src={imagePreview} className="w-full h-full object-cover" alt="Original" />
-                             </button>
-                        )}
-                        {/* Enhanced */}
-                        {enhancedImagePreview ? (
-                             <button
-                                type="button"
-                                onClick={() => setActiveImage(enhancedImagePreview)}
-                                className={`aspect-square rounded-lg overflow-hidden border-2 transition-all relative ${activeImage === enhancedImagePreview ? 'border-indigo-600 ring-2 ring-indigo-100' : 'border-gray-200 hover:border-gray-300'} animate-in zoom-in duration-300`}
-                             >
-                                <img src={enhancedImagePreview} className="w-full h-full object-cover" alt="Enhanced" />
-                                <div className="absolute inset-0 bg-indigo-900/10 pointer-events-none" />
-                             </button>
-                        ) : (
-                             <div className="aspect-square rounded-lg border-2 border-dashed border-gray-200 flex items-center justify-center bg-gray-100/50">
-                                <Loader2 size={16} className="text-gray-300 animate-spin" />
-                             </div>
-                        )}
-                        {/* Variations */}
-                        {generatedVariations.map((src, idx) => (
-                             <button
-                                key={idx}
-                                type="button"
-                                onClick={() => setActiveImage(src)}
-                                className={`aspect-square rounded-lg overflow-hidden border-2 transition-all relative ${activeImage === src ? 'border-indigo-600 ring-2 ring-indigo-100' : 'border-gray-200 hover:border-gray-300'} animate-in zoom-in duration-300`}
-                             >
-                                <img src={src} className="w-full h-full object-cover" alt={`Variation ${idx}`} />
-                             </button>
-                        ))}
-                        {/* Add Placeholder */}
-                        <div className="aspect-square rounded-lg border-2 border-dashed border-gray-200 flex items-center justify-center text-gray-400 hover:bg-gray-100 cursor-pointer">
-                            <Plus size={16} />
-                        </div>
-                    </div>
-                </div>
+                
                 
                 <div className="flex justify-between items-center mb-4">
                      <button 

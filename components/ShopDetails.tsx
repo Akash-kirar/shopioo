@@ -10,11 +10,10 @@ interface ShopDetailsProps {
   userLocation: { lat: number; lng: number } | null;
   onClose: () => void;
   currentUser?: User | null;
-  onToggleLike?: (productId: string) => void;
   onToggleCart?: (productId: string) => void;
 }
 
-export const ShopDetails: React.FC<ShopDetailsProps> = ({ shop, items, userLocation, onClose, currentUser, onToggleLike, onToggleCart }) => {
+export const ShopDetails: React.FC<ShopDetailsProps> = ({ shop, items, userLocation, onClose, currentUser, onToggleCart }) => {
   
   const distance = useMemo(() => {
     if (userLocation) {
@@ -96,7 +95,7 @@ export const ShopDetails: React.FC<ShopDetailsProps> = ({ shop, items, userLocat
                     <Phone className="w-4 h-4" /> Call Shop
                 </button>
                 <button onClick={handleNavigate} className="flex items-center justify-center gap-2 bg-[#a82283] text-white font-bold py-3.5 rounded-xl shadow-lg hover:bg-[#8e1d6f] transition-colors">
-                    <Navigation className="w-4 h-4" /> Get Directions
+                    {userLocation ? `${calculateDistance(userLocation.lat, userLocation.lng, shop.latitude, shop.longitude)} km • Directions` : 'Get Directions'}
                 </button>
             </div>
          </div>
@@ -116,9 +115,10 @@ export const ShopDetails: React.FC<ShopDetailsProps> = ({ shop, items, userLocat
                         title=""
                         products={items}
                         shops={[shop]}
-                        showDistance={false}
+                        showDistance={!!userLocation}
+                        userLocation={userLocation}
                         currentUser={currentUser}
-                        onToggleLike={onToggleLike}
+                        
                         onToggleCart={onToggleCart}
                     />
                 </div>

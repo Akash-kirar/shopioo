@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { User, Shop, Item } from '../types';
 import { getShops, saveShop, getItems, getAddressFromCoords, deleteItem, deleteShop, compressImage } from '../utils';
 import { SmartLister } from './SmartLister';
-import { WebcamCapture } from './WebcamCapture';
+
 import { 
   Store, 
   ShoppingBag, 
@@ -23,7 +23,8 @@ import {
   AlertCircle,
   LocateFixed,
   Image as ImageIcon,
-  Navigation
+  Navigation,
+  Edit2
 } from 'lucide-react';
 import L from 'leaflet';
 
@@ -247,7 +248,8 @@ const ShopMapPicker: React.FC<ShopMapPickerProps> = ({ initialLat, initialLng, i
                   Confirm Location
               </button>
           </div>
-      </div>
+  
+    </div>
   );
 };
 
@@ -279,6 +281,8 @@ export const OwnerDashboard: React.FC<OwnerDashboardProps> = ({ user, onLogout }
 
   const [showMapPicker, setShowMapPicker] = useState(false);
   
+  const [editingShopId, setEditingShopId] = useState<string | null>(null);
+
   const [formError, setFormError] = useState<string>('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [deletingIds, setDeletingIds] = useState<Set<string>>(new Set());
@@ -291,7 +295,7 @@ export const OwnerDashboard: React.FC<OwnerDashboardProps> = ({ user, onLogout }
   } | null>(null);
 
   // Shop Image Camera Handling
-  const [showWebcam, setShowWebcam] = useState(false);
+  
   const [showShopImageOptions, setShowShopImageOptions] = useState(false);
   const shopImageInputRef = useRef<HTMLInputElement>(null);
 
@@ -359,7 +363,7 @@ export const OwnerDashboard: React.FC<OwnerDashboardProps> = ({ user, onLogout }
       };
       reader.readAsDataURL(file);
       setShowShopImageOptions(false);
-      setShowWebcam(false);
+      
   };
 
   const handleAddShop = async (e: React.FormEvent) => {
@@ -407,7 +411,7 @@ export const OwnerDashboard: React.FC<OwnerDashboardProps> = ({ user, onLogout }
     
     try {
         const newShop: Shop = {
-            id: Date.now().toString(),
+            id: editingShopId || Date.now().toString(),
             ownerId: user.id,
             ownerName: ownerName || user.name,
             name: shopName,
@@ -424,18 +428,37 @@ export const OwnerDashboard: React.FC<OwnerDashboardProps> = ({ user, onLogout }
         };
 
         await saveShop(newShop);
-        alert("Shop Profile Created!");
+        alert(editingShopId ? "Shop Profile Updated!" : "Shop Profile Created!");
         
         // Reset form
         setShopName(''); setShopCategory(''); setShopPhone(''); setShopAddress(''); setGstNumber(''); setBankInfo(''); setShopLat(null); setShopLng(null); setShopImage('');
         setOwnerName(''); setOpeningTime(''); setClosingTime('');
+        setEditingShopId(null);
         
         setView('list');
     } catch (err) {
-        setFormError("Failed to create shop. Please try again.");
+        setFormError(`Failed to ${editingShopId ? 'update' : 'create'} shop. Please try again.`);
     } finally {
         setIsSubmitting(false);
     }
+  };
+
+  const handleEditShopClick = (e: React.MouseEvent, shop: Shop) => {
+    e.stopPropagation();
+    setEditingShopId(shop.id);
+    setShopName(shop.name);
+    setOwnerName(shop.ownerName);
+    setShopCategory(shop.category || '');
+    setShopPhone(shop.phone || '');
+    setShopAddress(shop.address || '');
+    setGstNumber(shop.gstNumber || '');
+    setBankInfo(shop.bankInfo || '');
+    setShopLat(shop.latitude);
+    setShopLng(shop.longitude);
+    setShopImage(shop.image || '');
+    setOpeningTime(shop.openingTime || '');
+    setClosingTime(shop.closingTime || '');
+    setView('add-shop');
   };
 
   const handleDeleteItemClick = (e: React.MouseEvent, item: Item) => {
@@ -544,15 +567,25 @@ export const OwnerDashboard: React.FC<OwnerDashboardProps> = ({ user, onLogout }
                     </div>
                     <div className="flex flex-col items-end gap-2">
                         <ChevronRight className="w-5 h-5 text-gray-300 group-hover:text-black transition-colors" />
-                        <button 
-                            onClick={(e) => handleDeleteShopClick(e, shop)}
-                            disabled={deletingIds.has(shop.id)}
-                            className="p-1.5 text-gray-300 hover:text-red-500 hover:bg-red-50 rounded-full transition-all z-10 disabled:opacity-50"
-                            title="Delete Shop"
-                            type="button"
-                        >
-                            {deletingIds.has(shop.id) ? <Loader2 className="w-4 h-4 animate-spin" /> : <Trash2 className="w-4 h-4" />}
-                        </button>
+                        <div className="flex items-center gap-1">
+                            <button 
+                                onClick={(e) => handleEditShopClick(e, shop)}
+                                className="p-1.5 text-gray-500 hover:text-blue-600 hover:bg-blue-50 rounded-full transition-all z-10"
+                                title="Edit Shop"
+                                type="button"
+                            >
+                                <Edit2 className="w-5 h-5" />
+                            </button>
+                            <button 
+                                onClick={(e) => handleDeleteShopClick(e, shop)}
+                                disabled={deletingIds.has(shop.id)}
+                                className="p-1.5 text-gray-500 hover:text-red-600 hover:bg-red-50 rounded-full transition-all z-10 disabled:opacity-50"
+                                title="Delete Shop"
+                                type="button"
+                            >
+                                {deletingIds.has(shop.id) ? <Loader2 className="w-5 h-5 animate-spin" /> : <Trash2 className="w-5 h-5" />}
+                            </button>
+                        </div>
                     </div>
                   </div>
                 ))
@@ -590,7 +623,7 @@ export const OwnerDashboard: React.FC<OwnerDashboardProps> = ({ user, onLogout }
                         </h3>
                         <button onClick={() => setView('add-item')} className="text-[11px] font-black bg-[#a82283] text-white px-4 py-2 rounded-xl flex items-center gap-2 hover:bg-[#8a1c6b] transition-colors shadow-lg active:scale-95">
                             <Camera className="w-3.5 h-3.5" />
-                            AI Scan Item
+                            Add Product
                         </button>
                     </div>
 
@@ -635,10 +668,15 @@ export const OwnerDashboard: React.FC<OwnerDashboardProps> = ({ user, onLogout }
           <div className="bg-white rounded-[2.5rem] shadow-xl border border-gray-50 overflow-hidden">
             <div className="p-6 md:p-10">
               <div className="flex items-center gap-3 mb-10">
-                <button onClick={() => setView('list')} className="p-2.5 bg-gray-50 hover:bg-gray-100 rounded-full transition-colors">
+                <button onClick={() => {
+                  setView('list');
+                  setEditingShopId(null);
+                  setShopName(''); setShopCategory(''); setShopPhone(''); setShopAddress(''); setGstNumber(''); setBankInfo(''); setShopLat(null); setShopLng(null); setShopImage('');
+                  setOwnerName(''); setOpeningTime(''); setClosingTime('');
+                }} className="p-2.5 bg-gray-50 hover:bg-gray-100 rounded-full transition-colors">
                   <ArrowLeft className="w-5 h-5 text-black" />
                 </button>
-                <h2 className="text-2xl font-black text-black tracking-tight">Register Shop</h2>
+                <h2 className="text-2xl font-black text-black tracking-tight">{editingShopId ? 'Edit Shop' : 'Register Shop'}</h2>
               </div>
               
               {formError && (
@@ -665,25 +703,11 @@ export const OwnerDashboard: React.FC<OwnerDashboardProps> = ({ user, onLogout }
                   <label className="text-[11px] font-black text-black uppercase tracking-[0.2em] mb-4 block">SHOP DETAILS</label>
                   
                   <div className="flex gap-4 mb-4">
-                    <input 
-                        type="text" 
-                        placeholder="Shop Name" 
-                        required 
-                        value={shopName} 
-                        onChange={e => { setShopName(e.target.value); setFormError(''); }} 
-                        onClick={() => {
-                            if (!shopLat || !shopLng) {
-                                handleGetCurrentLocation();
-                            }
-                        }}
-                        className="flex-1 bg-[#f8fafc] border border-gray-200 rounded-2xl py-4 px-6 text-sm font-black text-black outline-none focus:ring-2 focus:ring-[#a82283]/10" 
-                    />
-                    
-                    <div className="relative">
+                    <div className="relative shrink-0">
                         <button 
                             type="button"
                             onClick={() => setShowShopImageOptions(!showShopImageOptions)}
-                            className="w-16 h-16 bg-white border-2 border-dashed border-gray-200 rounded-2xl flex items-center justify-center cursor-pointer hover:border-[#a82283] transition overflow-hidden"
+                            className="w-[56px] h-[56px] bg-white border-2 border-dashed border-gray-200 rounded-2xl flex items-center justify-center cursor-pointer hover:border-[#a82283] transition overflow-hidden"
                         >
                             {shopImage ? <img src={shopImage} className="w-full h-full object-cover" /> : <Camera className="w-6 h-6 text-black" />}
                         </button>
@@ -691,10 +715,10 @@ export const OwnerDashboard: React.FC<OwnerDashboardProps> = ({ user, onLogout }
                         {showShopImageOptions && (
                             <>
                                 <div className="fixed inset-0 z-[50]" onClick={() => setShowShopImageOptions(false)}></div>
-                                <div className="absolute top-full right-0 mt-2 w-48 bg-white rounded-xl shadow-xl border border-gray-100 py-2 z-[60] animate-in fade-in zoom-in-95">
+                                <div className="absolute top-full left-0 mt-2 w-48 bg-white rounded-xl shadow-xl border border-gray-100 py-2 z-[60] animate-in fade-in zoom-in-95">
                                     <button 
                                         type="button"
-                                        onClick={() => { setShowWebcam(true); setShowShopImageOptions(false); }}
+                                        onClick={() => { const el = document.getElementById('native-cam-owner'); if(el) el.click();; setShowShopImageOptions(false); }}
                                         className="w-full text-left px-4 py-3 text-xs font-bold text-gray-700 hover:bg-gray-50 flex items-center gap-3"
                                     >
                                         <Camera className="w-4 h-4 text-[#a82283]" /> Take Photo
@@ -721,13 +745,27 @@ export const OwnerDashboard: React.FC<OwnerDashboardProps> = ({ user, onLogout }
                             }} 
                         />
                     </div>
+
+                    <input 
+                        type="text" 
+                        placeholder="Shop Name" 
+                        required 
+                        value={shopName} 
+                        onChange={e => { setShopName(e.target.value); setFormError(''); }} 
+                        onClick={() => {
+                            if (!shopLat || !shopLng) {
+                                handleGetCurrentLocation();
+                            }
+                        }}
+                        className="flex-1 bg-[#f8fafc] border border-gray-200 rounded-2xl py-4 px-6 text-sm font-black text-black outline-none focus:ring-2 focus:ring-[#a82283]/10" 
+                    />
                   </div>
 
-                  <div className="relative mb-4">
+                  <div className="relative mb-4 bg-[#f8fafc] border border-gray-200 rounded-2xl overflow-hidden focus-within:ring-2 focus-within:ring-[#a82283]/10">
                      <select 
                         value={shopCategory} 
                         onChange={e => { setShopCategory(e.target.value); setFormError(''); }} 
-                        className={`w-full bg-[#f8fafc] border border-gray-200 rounded-2xl py-4 px-6 text-sm font-black outline-none focus:ring-2 focus:ring-[#a82283]/10 appearance-none ${!shopCategory ? 'text-gray-400' : 'text-black'}`}
+                        className={`w-full bg-transparent py-4 px-6 text-sm font-black outline-none appearance-none relative z-10 ${!shopCategory ? 'text-gray-400' : 'text-black'}`}
                      >
                         <option value="" disabled>Select Shop Category</option>
                         <option value="Mobiles">Mobiles</option>
@@ -741,7 +779,7 @@ export const OwnerDashboard: React.FC<OwnerDashboardProps> = ({ user, onLogout }
                         <option value="Grocery">Grocery</option>
                         <option value="Other">Other</option>
                      </select>
-                     <ChevronRight className="absolute right-6 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 rotate-90" />
+                     <ChevronRight className="absolute right-6 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 rotate-90 z-0" />
                   </div>
 
                   <div className="flex gap-4 mb-4">
@@ -793,17 +831,6 @@ export const OwnerDashboard: React.FC<OwnerDashboardProps> = ({ user, onLogout }
                             className="w-full bg-[#f8fafc] border border-gray-200 rounded-2xl py-4 pl-14 pr-6 text-sm font-black text-black outline-none focus:ring-2 focus:ring-[#a82283]/10" 
                         />
                     </div>
-
-                    <div className="relative">
-                        <Building2 className="absolute left-6 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-                        <input 
-                            type="text" 
-                            placeholder="Bank Info (Account No, IFSC, Branch Name)" 
-                            value={bankInfo} 
-                            onChange={e => setBankInfo(e.target.value)} 
-                            className="w-full bg-[#f8fafc] border border-gray-200 rounded-2xl py-4 pl-14 pr-6 text-sm font-black text-black outline-none focus:ring-2 focus:ring-[#a82283]/10" 
-                        />
-                    </div>
                 </section>
 
                 <section>
@@ -838,10 +865,10 @@ export const OwnerDashboard: React.FC<OwnerDashboardProps> = ({ user, onLogout }
                 >
                     {isSubmitting ? (
                         <>
-                            <Loader2 className="w-5 h-5 animate-spin" /> Creating...
+                            <Loader2 className="w-5 h-5 animate-spin" /> {editingShopId ? 'Updating...' : 'Creating...'}
                         </>
                     ) : (
-                        'Create Shop Profile'
+                        editingShopId ? 'Update Shop Profile' : 'Create Shop Profile'
                     )}
                 </button>
               </form>
@@ -904,12 +931,11 @@ export const OwnerDashboard: React.FC<OwnerDashboardProps> = ({ user, onLogout }
          />
       )}
 
-      {showWebcam && (
-          <WebcamCapture 
-            onCapture={handleShopImageFile}
-            onClose={() => setShowWebcam(false)} 
-          />
-      )}
+      <input type="file" id="native-cam-owner" accept="image/*" capture="environment" className="hidden" onChange={(e) => {
+        if (e.target.files && e.target.files[0]) {
+            handleShopImageFile(e.target.files[0]);
+        }
+      }} />
     </div>
   );
 };

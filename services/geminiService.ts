@@ -82,7 +82,7 @@ export const analyzeProductImage = async (base64Image: string, mimeType: string)
   try {
     const response = await withRetry(async () => {
         return await ai.models.generateContent({
-        model: 'gemini-3-flash-preview',
+        model: 'gemini-3.5-flash',
         contents: {
             parts: [
             {
@@ -177,96 +177,3 @@ export const analyzeProductImage = async (base64Image: string, mimeType: string)
   }
 };
 
-/**
- * Enhances the product image by replacing background and improving quality.
- */
-export const enhanceProductImage = async (base64Image: string, mimeType: string): Promise<string | null> => {
-  try {
-    return await withRetry(async () => {
-        const response = await ai.models.generateContent({
-        model: 'gemini-2.5-flash-image',
-        contents: {
-            parts: [
-            {
-                inlineData: {
-                mimeType: mimeType,
-                data: base64Image,
-                },
-            },
-            {
-                text: "Create a professional e-commerce product photography shot of this item. 1. Replace the background with a clean, seamless soft white or light gray studio background. 2. Enhance the lighting to be professional studio quality. 3. Ensure the product looks realistic, sharp, and high-resolution. 4. Maintain the product's original shape, text, logos, and key details exactly as they are, but present them in the best possible way."
-            },
-            ],
-        },
-        });
-
-        for (const part of response.candidates?.[0]?.content?.parts || []) {
-            if (part.inlineData) {
-                return part.inlineData.data;
-            }
-        }
-        return null;
-    });
-  } catch (error: any) {
-    if (error?.message === "QUOTA_EXCEEDED") {
-      console.warn("Image Enhancement Skipped: API Quota Exceeded.");
-    } else {
-      console.error("Image Enhancement Error:", error);
-    }
-    return null;
-  }
-};
-
-/**
- * Generates additional angles/views of the product.
- */
-export const generateProductVariations = async (base64Image: string, mimeType: string): Promise<string[]> => {
-  const variations = [
-    "Generate a realistic image of this exact product from a side view on a clean white background. Maintain all product details consistency.",
-    "Show this product in a realistic lifestyle setting appropriate for its category (e.g. on a table, being held, or in use)."
-  ];
-
-  const results: string[] = [];
-
-  // SEQUENTIAL execution to avoid rate limits (Promise.all causes concurrency spike)
-  for (const prompt of variations) {
-    try {
-        const result = await withRetry(async () => {
-            const response = await ai.models.generateContent({
-            model: 'gemini-2.5-flash-image',
-            contents: {
-                parts: [
-                {
-                    inlineData: {
-                    mimeType: mimeType,
-                    data: base64Image,
-                    },
-                },
-                {
-                    text: prompt
-                },
-                ],
-            },
-            });
-
-            for (const part of response.candidates?.[0]?.content?.parts || []) {
-                if (part.inlineData) {
-                    return part.inlineData.data;
-                }
-            }
-            return null;
-        });
-
-        if (result) results.push(result);
-    } catch (err: any) {
-        if (err?.message === "QUOTA_EXCEEDED") {
-            console.warn("Variation generation aborted: API Quota Exceeded.");
-            break; // Abort further variations if quota is exceeded
-        }
-        console.error("Variation generation failed for prompt:", prompt, err);
-        // We continue to the next variation even if one fails
-    }
-  }
-
-  return results;
-};

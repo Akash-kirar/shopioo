@@ -1,6 +1,7 @@
 import React from 'react';
 import { Item, Shop, User } from '../types';
-import { Heart, MapPin, Navigation, ShoppingCart } from 'lucide-react';
+import { MapPin, Navigation, ShoppingCart } from 'lucide-react';
+import { calculateDistance } from '../utils';
 
 interface ProductGridProps {
   title: string;
@@ -9,11 +10,10 @@ interface ProductGridProps {
   showDistance?: boolean;
   userLocation?: { lat: number; lng: number } | null;
   currentUser?: User | null;
-  onToggleLike?: (productId: string) => void;
   onToggleCart?: (productId: string) => void;
 }
 
-export const ProductGrid: React.FC<ProductGridProps> = ({ title, products, shops, showDistance = false, userLocation, currentUser, onToggleLike, onToggleCart }) => {
+export const ProductGrid: React.FC<ProductGridProps> = ({ title, products, shops, showDistance = false, userLocation, currentUser, onToggleCart }) => {
   const handleNavigate = (shop: Shop) => {
     if(shop) {
         let url = `https://www.google.com/maps/dir/?api=1&destination=${shop.latitude},${shop.longitude}`;
@@ -43,28 +43,18 @@ export const ProductGrid: React.FC<ProductGridProps> = ({ title, products, shops
         <div className="grid grid-cols-2 gap-3">
             {products.map((product) => {
             const shop = shops.find(s => s.id === product.shopId);
-            const isLiked = currentUser?.likedItems?.includes(product.id);
             const isInCart = currentUser?.cartItems?.includes(product.id);
+            const displayDistance = product.distance !== undefined ? product.distance : (shop && userLocation ? calculateDistance(userLocation.lat, userLocation.lng, shop.latitude, shop.longitude) : undefined);
             return (
             <div key={product.id} className="bg-white rounded-2xl p-3 shadow-sm border border-gray-100 relative flex flex-col h-full active:scale-[0.98] transition-transform">
                 <button 
                     onClick={(e) => {
                         e.stopPropagation();
-                        if (onToggleLike) onToggleLike(product.id);
-                    }}
-                    className="absolute top-3 right-3 p-1.5 bg-white/80 backdrop-blur-sm rounded-full text-gray-400 hover:text-red-500 z-10 transition-colors shadow-sm"
-                >
-                    <Heart className={`w-3.5 h-3.5 ${isLiked ? 'fill-red-500 text-red-500' : ''}`} />
-                </button>
-
-                <button 
-                    onClick={(e) => {
-                        e.stopPropagation();
                         if (onToggleCart) onToggleCart(product.id);
                     }}
-                    className="absolute top-11 right-3 p-1.5 bg-white/80 backdrop-blur-sm rounded-full text-gray-400 hover:text-purple-600 z-10 transition-colors shadow-sm"
+                    className="absolute top-2 right-2 p-1.5 bg-white/80 backdrop-blur-sm rounded-full text-gray-400 hover:text-purple-600 z-10 transition-colors shadow-sm"
                 >
-                    <ShoppingCart className={`w-3.5 h-3.5 ${isInCart ? 'fill-purple-600 text-purple-600' : ''}`} />
+                    <ShoppingCart className={`w-4 h-4 ${isInCart ? 'fill-purple-600 text-purple-600' : ''}`} />
                 </button>
 
                 <div className="h-36 w-full flex items-center justify-center mb-3 bg-white rounded-xl overflow-hidden">
@@ -100,11 +90,9 @@ export const ProductGrid: React.FC<ProductGridProps> = ({ title, products, shops
                         </div>
                         
                         <div className="border-t border-dashed border-gray-200 pt-2.5 flex items-center justify-between">
-                             {showDistance && product.distance !== undefined && product.distance < 9000 ? (
-                                <span className="text-xs font-bold text-[#a82283] tracking-tight">{product.distance} km away</span>
-                            ) : (
-                                <span className="text-[10px] text-gray-400 font-bold">Get Directions</span>
-                            )}
+                            <span className="text-xs font-bold text-[#a82283] tracking-tight">
+                                {displayDistance !== undefined ? `${displayDistance} km` : '0 km'}
+                            </span>
                             
                             <button 
                                 onClick={(e) => {

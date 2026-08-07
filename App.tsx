@@ -7,12 +7,15 @@ import { BottomNav } from './components/BottomNav';
 import { Auth } from './components/Auth';
 import { OwnerDashboard } from './components/OwnerDashboard';
 import { ShopDetails } from './components/ShopDetails';
+import { LocationPermissionModal } from './components/LocationPermissionModal';
 import { SmartLister } from './components/SmartLister';
 import { AIChat } from './components/AIChat';
-import { PlaySection } from './components/PlaySection';
 import { Category, AdBanner, Item, User, Shop } from './types';
 import { getItems, getShops, getCurrentUser, setCurrentUser, calculateDistance, getAddressFromCoords, updateUser } from './utils';
-import { Smartphone, Shirt, Footprints, Armchair, Sparkles, Watch, Monitor, X, MapPin, Search, Navigation, Store, LocateFixed, Loader2, Gem, Layers, Heart, ShoppingCart } from 'lucide-react';
+import { auth, db } from './firebase';
+import { onAuthStateChanged, signOut } from 'firebase/auth';
+import { doc, getDoc } from 'firebase/firestore';
+import { LayoutGrid, Smartphone, Shirt, Footprints, Armchair, Sparkles, Watch, Monitor, X, MapPin, Search, Navigation, Store, LocateFixed, Loader2, Gem, Layers, Heart, ShoppingCart, Apple, Gamepad2, BookOpen, Bike, Home, Coffee, Dog, Gift, PenTool, Car, HeartPulse, Music, User as UserIcon, Mail, Phone, Edit2, Check } from 'lucide-react';
 import { GoogleGenAI } from "@google/genai";
 import L from 'leaflet';
 
@@ -22,12 +25,13 @@ const App: React.FC = () => {
   const [items, setItems] = useState<Item[]>([]);
   const [shops, setShops] = useState<Shop[]>([]);
   const [filteredItems, setFilteredItems] = useState<Item[]>([]);
-  const [userLocation, setUserLocation] = useState<{lat: number, lng: number} | null>(null);
-  const [locationName, setLocationName] = useState('Tap to locate...');
+  const [userLocation, setUserLocation] = useState<{lat: number, lng: number} | null>({lat: 26.2183, lng: 78.1828});
+  const [locationName, setLocationName] = useState('Gwalior, Madhya Pradesh');
   const [isSearching, setIsSearching] = useState(false);
   const [searchStatus, setSearchStatus] = useState('');
   const [detectedTags, setDetectedTags] = useState<string[]>([]);
   const [showMap, setShowMap] = useState(false);
+  const [showLocationPrompt, setShowLocationPrompt] = useState(false);
   const [mapSearchQuery, setMapSearchQuery] = useState('');
   const [isLocating, setIsLocating] = useState(false);
   const [isOwnerView, setIsOwnerView] = useState(false);
@@ -38,6 +42,10 @@ const App: React.FC = () => {
   
   const [mapSuggestions, setMapSuggestions] = useState<Shop[]>([]);
   const [activeMapCategory, setActiveMapCategory] = useState<string | null>(null);
+  
+  const [editingField, setEditingField] = useState<'name' | 'email' | 'mobileNumber' | null>(null);
+  const [editValue, setEditValue] = useState('');
+  const [maxRadius, setMaxRadius] = useState<number | null>(null);
 
   const mapRef = useRef<L.Map | null>(null);
   const userMarkerRef = useRef<L.Marker | null>(null);
@@ -55,7 +63,7 @@ const App: React.FC = () => {
     }
 
     // Visual feedback for user action
-    if (isUserAction || locationName === 'Tap to locate...') {
+    if (isUserAction || locationName === 'Gwalior, Madhya Pradesh') {
         setLocationName('Locating...');
     }
 
@@ -67,7 +75,7 @@ const App: React.FC = () => {
     };
 
     const handleError = (error: GeolocationPositionError) => {
-        let message = 'Tap to locate...';
+        let message = 'Gwalior, Madhya Pradesh';
         
         switch(error.code) {
           case error.PERMISSION_DENIED:
@@ -84,7 +92,7 @@ const App: React.FC = () => {
                  // Retry once with lower accuracy if it was an auto-load attempt
                  navigator.geolocation.getCurrentPosition(
                     handleSuccess, 
-                    () => setLocationName('Tap to locate...'), 
+                    () => setLocationName('Gwalior, Madhya Pradesh'), 
                     { enableHighAccuracy: false, timeout: 10000 }
                  );
                  return;
@@ -242,6 +250,15 @@ const App: React.FC = () => {
     await updateUser(updatedUser);
   };
 
+  const handleSaveEdit = async () => {
+    if (!currentUser || !editingField) return;
+    
+    const updatedUser = { ...currentUser, [editingField]: editValue };
+    setUser(updatedUser);
+    await updateUser(updatedUser);
+    setEditingField(null);
+  };
+
   const handleMapSearch = async (e: React.FormEvent) => {
     e.preventDefault();
     setMapSuggestions([]);
@@ -386,9 +403,29 @@ const App: React.FC = () => {
   }, [showMap, shops, activeMapCategory]);
 
   useEffect(() => {
-    const u = getCurrentUser();
-    if(u) setUser(u);
+    const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
+      if (firebaseUser) {
+        // Fetch custom user profile
+        const userRef = doc(db, 'users', firebaseUser.uid);
+        const userSnap = await getDoc(userRef);
+        if (userSnap.exists()) {
+          const u = userSnap.data() as User;
+          setUser(u);
+          setCurrentUser(u);
+        } else {
+          // Fallback to local storage if profile not in DB yet
+          const u = getCurrentUser();
+          if(u) setUser(u);
+        }
+      } else {
+        setUser(null);
+        setCurrentUser(null);
+      }
+    });
+    
+    // Also trigger initial data fetch
     refreshData();
+    return () => unsubscribe();
   }, []);
 
   useEffect(() => {
@@ -419,7 +456,7 @@ const App: React.FC = () => {
 
   const handleLogin = (u: User) => { setUser(u); setCurrentUser(u); refreshData(); };
   
-  const handleLogout = () => { setUser(null); setCurrentUser(null); };
+  const handleLogout = async () => { await signOut(auth); setUser(null); setCurrentUser(null); };
 
   const handleSearch = (query: string) => {
     setIsSearching(!!query);
@@ -565,9 +602,9 @@ const App: React.FC = () => {
 
     const results = currentItems.filter(i => {
         const shop = shops.find(s => s.id === i.shopId);
-        const matchesShopCategory = shop?.category === categoryName;
         const matchesItemCategory = i.category === categoryName || (i.tag && i.tag.includes(categoryName));
-        return matchesShopCategory || matchesItemCategory;
+        const matchesShopCategory = shop && shop.category === categoryName;
+        return matchesItemCategory || matchesShopCategory;
     });
 
     const resultsWithDist = results.map(item => {
@@ -580,10 +617,15 @@ const App: React.FC = () => {
   };
 
   const categories: Category[] = [
-    { id: '1', name: 'Mobiles', icon: Smartphone }, { id: '2', name: 'Fashion', icon: Shirt },
+    { id: '0', name: 'All', icon: LayoutGrid }, { id: '1', name: 'Mobiles', icon: Smartphone }, { id: '2', name: 'Fashion', icon: Shirt },
     { id: '3', name: 'Shoes', icon: Footprints }, { id: '4', name: 'Furniture', icon: Armchair },
     { id: '5', name: 'Beauty', icon: Sparkles }, { id: '6', name: 'Watches', icon: Watch },
     { id: '7', name: 'Electronics', icon: Monitor }, { id: '8', name: 'Jewellery', icon: Gem },
+    { id: '9', name: 'Groceries', icon: Apple }, { id: '10', name: 'Toys', icon: Gamepad2 },
+    { id: '11', name: 'Books', icon: BookOpen }, { id: '12', name: 'Sports', icon: Bike },
+    { id: '14', name: 'Cafes', icon: Coffee }, { id: '16', name: 'Gifts', icon: Gift },
+    { id: '17', name: 'Stationery', icon: PenTool }, { id: '18', name: 'Automotive', icon: Car },
+    { id: '19', name: 'Health', icon: HeartPulse },
   ];
   
   const onlineAds: AdBanner[] = [{ id: 'o1', title: 'Summer Sale', subtitle: 'Up to 50% Off', image: 'https://images.unsplash.com/photo-1607082348824-0a96f2a4b9da?auto=format&fit=crop&q=80', type: 'online' }];
@@ -597,8 +639,19 @@ const App: React.FC = () => {
       return <OwnerDashboard user={currentUser} onLogout={() => setIsOwnerView(false)} />;
   }
 
+  const displayedItems = maxRadius 
+      ? filteredItems.filter(item => item.distance !== undefined && item.distance <= maxRadius)
+      : filteredItems;
+
   return (
     <div className="min-h-screen pb-16 bg-white">
+        {showLocationPrompt && (
+            <LocationPermissionModal onAllow={() => {
+                setShowLocationPrompt(false);
+                localStorage.setItem('locationPrompted', 'true');
+                getLocation();
+            }} />
+        )}
         {showMap && (
              <div className="fixed inset-0 z-[60] bg-white flex flex-col">
                      <div className="absolute top-4 left-4 right-4 z-[400] flex gap-2">
@@ -713,6 +766,8 @@ const App: React.FC = () => {
                 onLocationClick={getLocation}
                 onMapClick={() => setShowMap(true)}
                 onOwnerClick={() => setIsOwnerView(true)}
+                radius={maxRadius}
+                onRadiusChange={setMaxRadius}
             />
         )}
         
@@ -733,26 +788,15 @@ const App: React.FC = () => {
                 
                 <ProductGrid 
                     title={isSearching ? searchStatus : "Nearby Products"} 
-                    products={filteredItems}
+                    products={displayedItems}
                     shops={shops}
                     showDistance={!!userLocation}
                     userLocation={userLocation}
                     currentUser={currentUser}
-                    onToggleLike={handleToggleLike}
+                    
                     onToggleCart={handleToggleCart}
                 />
             </main>
-        )}
-        
-        {activeTab === 'play' && (
-             <PlaySection 
-                items={items}
-                shops={shops}
-                currentUser={currentUser}
-                onToggleLike={handleToggleLike}
-                onToggleCart={handleToggleCart}
-                userLocation={userLocation}
-             />
         )}
         
         {activeTab === 'categories' && (
@@ -777,6 +821,40 @@ const App: React.FC = () => {
                 userLocation={userLocation} 
                 locationName={locationName} 
              />
+        )}
+
+        {activeTab === 'favorites' && (
+             <div className="p-6">
+                <div className="mb-6">
+                    <h2 className="text-2xl font-black text-gray-900 mb-6">Liked Items</h2>
+                    {(!currentUser.likedItems || currentUser.likedItems.length === 0) ? (
+                        <div className="text-center py-12 bg-gray-50 rounded-2xl border border-dashed border-gray-200">
+                            <Heart className="w-12 h-12 text-gray-300 mx-auto mb-3" />
+                            <p className="text-gray-500 font-bold text-base">No liked items yet.</p>
+                            <p className="text-gray-400 text-sm mt-1">Items you like will appear here.</p>
+                            <button 
+                                onClick={() => setActiveTab('home')}
+                                className="mt-6 bg-[#a82283] text-white px-6 py-2.5 rounded-xl font-bold text-sm shadow-lg active:scale-95 transition-transform"
+                            >
+                                Start Shopping
+                            </button>
+                        </div>
+                    ) : (
+                        <div className="-mx-3">
+                            <ProductGrid 
+                                title="" 
+                                products={items.filter(item => currentUser.likedItems?.includes(item.id))}
+                                shops={shops}
+                                showDistance={!!userLocation}
+                                userLocation={userLocation}
+                                currentUser={currentUser}
+                                
+                                onToggleCart={handleToggleCart}
+                            />
+                        </div>
+                    )}
+                </div>
+             </div>
         )}
 
         {activeTab === 'cart' && (
@@ -804,7 +882,7 @@ const App: React.FC = () => {
                                 showDistance={!!userLocation}
                                 userLocation={userLocation}
                                 currentUser={currentUser}
-                                onToggleLike={handleToggleLike}
+                                
                                 onToggleCart={handleToggleCart}
                             />
                         </div>
@@ -817,39 +895,108 @@ const App: React.FC = () => {
              <div className="p-6">
                 <div className="bg-gradient-to-br from-[#a82283] to-[#701a5b] rounded-3xl p-6 text-white shadow-xl mb-6 relative overflow-hidden">
                     <div className="relative z-10">
-                        <h2 className="text-2xl font-black mb-1">Hello, {currentUser.name}</h2>
-                        <p className="text-white/80 text-sm font-medium">{currentUser.email}</p>
+                        <h2 className="text-2xl font-black mb-1">Hello, {currentUser.name === 'Mobile User' ? 'Guest' : currentUser.name}</h2>
+                        <p className="text-white/80 text-sm font-medium">{currentUser.email.endsWith('@mobile.user') ? 'Complete your profile' : currentUser.email}</p>
                         <button onClick={() => setIsOwnerView(true)} className="mt-6 bg-white text-[#a82283] px-6 py-2.5 rounded-xl font-black text-sm shadow-lg active:scale-95 transition-transform flex items-center gap-2">
-                             <Store className="w-4 h-4" /> {currentUser.role === 'owner' ? 'Manage Shop' : 'Register Shop'}
+                             <Store className="w-4 h-4" /> Dashboard
                         </button>
                     </div>
                     <Sparkles className="absolute -bottom-4 -right-4 w-32 h-32 text-white/10 rotate-12" />
                 </div>
                 
-                <div className="mb-6">
-                    <h3 className="text-lg font-bold text-gray-900 mb-3">Liked Items</h3>
-                    {(!currentUser.likedItems || currentUser.likedItems.length === 0) ? (
-                        <div className="text-center py-8 bg-gray-50 rounded-2xl border border-dashed border-gray-200">
-                            <Heart className="w-8 h-8 text-gray-300 mx-auto mb-2" />
-                            <p className="text-gray-500 font-bold text-sm">No liked items yet.</p>
-                            <p className="text-gray-400 text-xs mt-1">Items you like will appear here.</p>
+                <div className="mb-6 space-y-4">
+                    <div className="bg-white p-4 rounded-2xl border border-gray-100 shadow-sm flex items-center justify-between">
+                        <div className="flex items-center gap-3">
+                            <div className="w-10 h-10 rounded-full bg-gray-50 flex items-center justify-center text-gray-500">
+                                <UserIcon className="w-5 h-5" />
+                            </div>
+                            {editingField === 'name' ? (
+                                <input 
+                                    type="text" 
+                                    value={editValue} 
+                                    onChange={(e) => setEditValue(e.target.value)} 
+                                    className="border-b border-gray-300 focus:border-[#a82283] outline-none bg-transparent font-bold text-gray-900 w-full"
+                                    autoFocus
+                                />
+                            ) : (
+                                <div>
+                                    <p className="text-xs text-gray-400 font-bold uppercase tracking-wider">Name</p>
+                                    <p className={`font-bold ${currentUser.name === 'Mobile User' ? 'text-gray-400 italic' : 'text-gray-900'}`}>{currentUser.name === 'Mobile User' ? 'Not set' : currentUser.name}</p>
+                                </div>
+                            )}
                         </div>
-                    ) : (
-                        <div className="-mx-3">
-                            <ProductGrid 
-                                title="" 
-                                products={items.filter(item => currentUser.likedItems?.includes(item.id))}
-                                shops={shops}
-                                showDistance={!!userLocation}
-                                userLocation={userLocation}
-                                currentUser={currentUser}
-                                onToggleLike={handleToggleLike}
-                                onToggleCart={handleToggleCart}
-                            />
+                        {editingField === 'name' ? (
+                            <div className="flex gap-2">
+                                <button onClick={() => setEditingField(null)} className="p-2 text-gray-400 hover:text-gray-600"><X className="w-5 h-5" /></button>
+                                <button onClick={handleSaveEdit} className="p-2 text-green-500 hover:text-green-600"><Check className="w-5 h-5" /></button>
+                            </div>
+                        ) : (
+                            <button onClick={() => { setEditingField('name'); setEditValue(currentUser.name === 'Mobile User' ? '' : currentUser.name); }} className="p-2 text-gray-400 hover:text-[#a82283] transition-colors"><Edit2 className="w-5 h-5" /></button>
+                        )}
+                    </div>
+
+                    <div className="bg-white p-4 rounded-2xl border border-gray-100 shadow-sm flex items-center justify-between">
+                        <div className="flex items-center gap-3">
+                            <div className="w-10 h-10 rounded-full bg-gray-50 flex items-center justify-center text-gray-500">
+                                <Mail className="w-5 h-5" />
+                            </div>
+                            {editingField === 'email' ? (
+                                <input 
+                                    type="email" 
+                                    value={editValue} 
+                                    onChange={(e) => setEditValue(e.target.value)} 
+                                    className="border-b border-gray-300 focus:border-[#a82283] outline-none bg-transparent font-bold text-gray-900 w-full"
+                                    autoFocus
+                                />
+                            ) : (
+                                <div>
+                                    <p className="text-xs text-gray-400 font-bold uppercase tracking-wider">Email</p>
+                                    <p className={`font-bold ${currentUser.email.endsWith('@mobile.user') ? 'text-gray-400 italic' : 'text-gray-900'}`}>{currentUser.email.endsWith('@mobile.user') ? 'Not set' : currentUser.email}</p>
+                                </div>
+                            )}
                         </div>
-                    )}
+                        {editingField === 'email' ? (
+                            <div className="flex gap-2">
+                                <button onClick={() => setEditingField(null)} className="p-2 text-gray-400 hover:text-gray-600"><X className="w-5 h-5" /></button>
+                                <button onClick={handleSaveEdit} className="p-2 text-green-500 hover:text-green-600"><Check className="w-5 h-5" /></button>
+                            </div>
+                        ) : (
+                            <button onClick={() => { setEditingField('email'); setEditValue(currentUser.email.endsWith('@mobile.user') ? '' : currentUser.email); }} className="p-2 text-gray-400 hover:text-[#a82283] transition-colors"><Edit2 className="w-5 h-5" /></button>
+                        )}
+                    </div>
+
+                    <div className="bg-white p-4 rounded-2xl border border-gray-100 shadow-sm flex items-center justify-between">
+                        <div className="flex items-center gap-3">
+                            <div className="w-10 h-10 rounded-full bg-gray-50 flex items-center justify-center text-gray-500">
+                                <Phone className="w-5 h-5" />
+                            </div>
+                            {editingField === 'mobileNumber' ? (
+                                <input 
+                                    type="tel" 
+                                    value={editValue} 
+                                    onChange={(e) => setEditValue(e.target.value.replace(/\D/g, '').slice(0, 10))}
+                                    maxLength={10}
+                                    className="border-b border-gray-300 focus:border-[#a82283] outline-none bg-transparent font-bold text-gray-900 w-full"
+                                    autoFocus
+                                />
+                            ) : (
+                                <div>
+                                    <p className="text-xs text-gray-400 font-bold uppercase tracking-wider">Mobile Number</p>
+                                    <p className="font-bold text-gray-900">{currentUser.mobileNumber || 'Not set'}</p>
+                                </div>
+                            )}
+                        </div>
+                        {editingField === 'mobileNumber' ? (
+                            <div className="flex gap-2">
+                                <button onClick={() => setEditingField(null)} className="p-2 text-gray-400 hover:text-gray-600"><X className="w-5 h-5" /></button>
+                                <button onClick={handleSaveEdit} className="p-2 text-green-500 hover:text-green-600"><Check className="w-5 h-5" /></button>
+                            </div>
+                        ) : (
+                            <button onClick={() => { setEditingField('mobileNumber'); setEditValue(currentUser.mobileNumber || ''); }} className="p-2 text-gray-400 hover:text-[#a82283] transition-colors"><Edit2 className="w-5 h-5" /></button>
+                        )}
+                    </div>
                 </div>
-                
+
                 <button onClick={handleLogout} className="w-full bg-gray-100 text-gray-900 font-bold py-4 rounded-2xl flex items-center justify-center gap-2 hover:bg-gray-200 transition-colors">
                     Log Out
                 </button>
@@ -865,7 +1012,7 @@ const App: React.FC = () => {
                 userLocation={userLocation} 
                 onClose={() => setSelectedShopForDetails(null)} 
                 currentUser={currentUser}
-                onToggleLike={handleToggleLike}
+                
                 onToggleCart={handleToggleCart}
             />
         )}

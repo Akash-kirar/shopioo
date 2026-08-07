@@ -6,6 +6,7 @@ export interface User {
   id: string;
   name: string;
   email: string;
+  mobileNumber?: string;
   role: UserRole;
   password?: string;
   likedItems?: string[];

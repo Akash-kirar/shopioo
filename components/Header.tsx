@@ -1,6 +1,6 @@
 import React, { useRef, useState, useEffect } from 'react';
-import { Search, LogOut, User, Store, ChevronDown, Camera, Image as ImageIcon, Home } from 'lucide-react';
-import { WebcamCapture } from './WebcamCapture';
+import { Search, LogOut, User, Store, ChevronDown, ChevronsDown, Camera, Image as ImageIcon, Home } from 'lucide-react';
+
 
 interface HeaderProps {
   userLocation: string;
@@ -10,6 +10,8 @@ interface HeaderProps {
   onLocationClick: () => void;
   onMapClick: () => void;
   onOwnerClick: () => void;
+  radius: number | null;
+  onRadiusChange: (r: number | null) => void;
 }
 
 const RedMapPinIcon = ({ className = "w-10 h-10" }: { className?: string }) => (
@@ -46,12 +48,20 @@ const ShopiooLogo = ({ className = "w-8 h-8" }: { className?: string }) => (
     </svg>
 );
 
-export const Header: React.FC<HeaderProps> = ({ userLocation, onSearch, onImageSearch, onLogout, onLocationClick, onMapClick, onOwnerClick }) => {
+export const Header: React.FC<HeaderProps> = ({ userLocation, onSearch, onImageSearch, onLogout, onLocationClick, onMapClick, onOwnerClick, radius, onRadiusChange }) => {
   const galleryInputRef = useRef<HTMLInputElement>(null);
   const [isProfileOpen, setIsProfileOpen] = useState(false);
   const [showCameraOptions, setShowCameraOptions] = useState(false);
-  const [showWebcam, setShowWebcam] = useState(false);
+  
   const [searchQuery, setSearchQuery] = useState('');
+  
+  const [isRadiusOpen, setIsRadiusOpen] = useState(false);
+  
+  const radiusOptions = [
+    0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 
+    1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 
+    16, 17, 18, 19, 20, 21, 22, 23, 24, 25
+  ];
   
   const [placeholderIndex, setPlaceholderIndex] = useState(0);
   const placeholders = ["Mobiles", "Shoes", "Beauty", "Watches", "Jewellery", "Furniture", "Electronics"];
@@ -78,11 +88,7 @@ export const Header: React.FC<HeaderProps> = ({ userLocation, onSearch, onImageS
       e.target.value = '';
   };
 
-  const handleWebcamCapture = (file: File) => {
-      onImageSearch(file);
-      setShowWebcam(false);
-      setShowCameraOptions(false);
-  };
+
 
   return (
     <>
@@ -106,8 +112,6 @@ export const Header: React.FC<HeaderProps> = ({ userLocation, onSearch, onImageS
                 onClick={onLocationClick}
                 className="flex items-center gap-1 bg-[#0f392b] px-3 py-1.5 rounded-full cursor-pointer hover:bg-[#154d39] transition-colors shrink min-w-0"
              >
-                <Home className="w-3.5 h-3.5 text-white fill-white shrink-0" />
-                <span className="hidden sm:inline text-[10px] font-black text-white shrink-0 uppercase">HOME</span>
                 <span className="text-[10px] text-white/90 truncate font-medium max-w-[80px] sm:max-w-[150px]">
                     {userLocation && userLocation !== 'Locating...' ? userLocation : 'Set Location'}
                 </span>
@@ -123,21 +127,41 @@ export const Header: React.FC<HeaderProps> = ({ userLocation, onSearch, onImageS
                 <RedMapPinIcon className="w-5 h-5" />
              </button>
 
-             {/* User Profile */}
+             {/* Radius Dropdown */}
              <div className="relative shrink-0">
-                <button onClick={() => setIsProfileOpen(!isProfileOpen)} className="w-10 h-10 bg-gray-50 rounded-full flex items-center justify-center text-gray-700 hover:bg-gray-100 transition border border-gray-200 shadow-sm active:scale-95">
-                    <User className="w-5 h-5" strokeWidth={2} />
+                <button 
+                    onClick={() => setIsRadiusOpen(!isRadiusOpen)} 
+                    className={`w-10 h-10 rounded-full flex items-center justify-center transition border shadow-sm active:scale-95 ${radius ? 'bg-purple-50 border-purple-200 text-purple-700' : 'bg-gray-50 border-gray-200 text-gray-700 hover:bg-gray-100'}`}
+                    title={radius ? `${radius < 1 ? radius * 1000 + 'm' : radius + 'km'} radius` : "Set Radius"}
+                >
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className="w-5 h-5">
+                        <path d="M12 2v10" />
+                        <path d="M8 8l4 4 4-4" />
+                        <ellipse cx="12" cy="18" rx="7" ry="2.5" />
+                    </svg>
                 </button>
-                {isProfileOpen && (
+                {isRadiusOpen && (
                     <>
-                        <div className="fixed inset-0 z-40" onClick={() => setIsProfileOpen(false)}></div>
-                        <div className="absolute right-0 mt-2 w-44 bg-white rounded-xl shadow-xl py-1 z-50 border border-gray-100 animate-in fade-in slide-in-from-top-2">
-                            <button onClick={() => { setIsProfileOpen(false); onOwnerClick(); }} className="w-full text-left px-4 py-2 text-xs text-gray-700 hover:bg-gray-50 flex items-center gap-2 font-bold transition-colors">
-                                <Store className="w-3.5 h-3.5" /> Dashboard
+                        <div className="fixed inset-0 z-40" onClick={() => setIsRadiusOpen(false)}></div>
+                        <div className="absolute right-0 mt-2 w-48 bg-white rounded-2xl shadow-2xl py-2 z-50 border border-gray-100 max-h-[60vh] overflow-y-auto animate-in fade-in slide-in-from-top-2">
+                            <div className="px-4 py-2 border-b border-gray-100 mb-1">
+                                <span className="text-xs font-bold text-gray-500 uppercase tracking-wider">Select Radius</span>
+                            </div>
+                            <button 
+                                onClick={() => { onRadiusChange(null); setIsRadiusOpen(false); }} 
+                                className={`w-full text-left px-4 py-2 text-sm font-bold transition-colors ${radius === null ? 'bg-purple-50 text-[#a82283]' : 'text-gray-700 hover:bg-gray-50'}`}
+                            >
+                                Anywhere
                             </button>
-                            <button onClick={() => { setIsProfileOpen(false); onLogout(); }} className="w-full text-left px-4 py-2 text-xs text-red-600 hover:bg-red-50 flex items-center gap-2 font-bold transition-colors">
-                                <LogOut className="w-3.5 h-3.5" /> Logout
-                            </button>
+                            {radiusOptions.map(r => (
+                                <button 
+                                    key={r}
+                                    onClick={() => { onRadiusChange(r); setIsRadiusOpen(false); }} 
+                                    className={`w-full text-left px-4 py-2 text-sm font-bold transition-colors ${radius === r ? 'bg-purple-50 text-[#a82283]' : 'text-gray-700 hover:bg-gray-50'}`}
+                                >
+                                    {r < 1 ? `${r * 1000} m` : `${r} km`}
+                                </button>
+                            ))}
                         </div>
                     </>
                 )}
@@ -165,7 +189,7 @@ export const Header: React.FC<HeaderProps> = ({ userLocation, onSearch, onImageS
                         <div className="fixed inset-0 z-[60]" onClick={() => setShowCameraOptions(false)}></div>
                         <div className="absolute top-full right-0 mt-2 w-44 bg-white rounded-xl shadow-xl border border-gray-100 py-2 z-[70] animate-in fade-in zoom-in-95">
                             <button 
-                                onClick={() => setShowWebcam(true)}
+                                onClick={() => { const el = document.getElementById('native-cam-header'); if (el) el.click(); }}
                                 className="w-full text-left px-4 py-2.5 text-xs font-bold text-gray-700 hover:bg-gray-50 flex items-center gap-2.5"
                             >
                                 <Camera className="w-3.5 h-3.5 text-[#F97316]" /> Take Photo
@@ -193,13 +217,9 @@ export const Header: React.FC<HeaderProps> = ({ userLocation, onSearch, onImageS
           </div>
         </div>
       </header>
+      <input type="file" id="native-cam-header" accept="image/*" capture="environment" className="hidden" onChange={handleImageUpload} />
       
-      {showWebcam && (
-          <WebcamCapture 
-            onCapture={handleWebcamCapture} 
-            onClose={() => setShowWebcam(false)} 
-          />
-      )}
+      <input type="file" id="native-cam-header" accept="image/*" capture="environment" className="hidden" onChange={handleImageUpload} />
     </>
   );
 };

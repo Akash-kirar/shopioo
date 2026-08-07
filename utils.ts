@@ -1,41 +1,6 @@
 import { User, Shop, Item } from './types';
-
-// --- INDEXED DB SETUP ---
-const DB_NAME = 'shopioo_db_v3';
-const DB_VERSION = 1;
-
-const openDB = (): Promise<IDBDatabase> => {
-  return new Promise((resolve, reject) => {
-    const request = indexedDB.open(DB_NAME, DB_VERSION);
-    request.onerror = () => reject(request.error);
-    request.onsuccess = () => resolve(request.result);
-    request.onupgradeneeded = (event) => {
-      const db = (event.target as IDBOpenDBRequest).result;
-      if (!db.objectStoreNames.contains('users')) db.createObjectStore('users', { keyPath: 'id' });
-      if (!db.objectStoreNames.contains('shops')) db.createObjectStore('shops', { keyPath: 'id' });
-      if (!db.objectStoreNames.contains('items')) db.createObjectStore('items', { keyPath: 'id' });
-    };
-  });
-};
-
-const tx = <T>(storeName: string, mode: IDBTransactionMode, callback: (store: IDBObjectStore) => IDBRequest<T> | void): Promise<T> => {
-  return new Promise(async (resolve, reject) => {
-    try {
-        const db = await openDB();
-        const transaction = db.transaction(storeName, mode);
-        const store = transaction.objectStore(storeName);
-        const request = callback(store);
-        
-        if (request) {
-            request.onsuccess = () => resolve(request.result);
-            request.onerror = () => reject(request.error);
-        } else {
-            transaction.oncomplete = () => resolve(undefined as T);
-            transaction.onerror = () => reject(transaction.error);
-        }
-    } catch(e) { reject(e); }
-  });
-};
+import { db } from './firebase';
+import { collection, getDocs, doc, setDoc, deleteDoc, getDoc, query, where } from 'firebase/firestore';
 
 // --- IMAGE COMPRESSION UTILS ---
 export const compressImage = (base64Str: string, maxWidth = 600, quality = 0.6): Promise<string> => {
@@ -46,7 +11,6 @@ export const compressImage = (base64Str: string, maxWidth = 600, quality = 0.6):
       const canvas = document.createElement('canvas');
       let width = img.width;
       let height = img.height;
-
       if (width > height) {
         if (width > maxWidth) {
           height = Math.round((height * maxWidth) / width);
@@ -58,11 +22,9 @@ export const compressImage = (base64Str: string, maxWidth = 600, quality = 0.6):
           height = maxWidth;
         }
       }
-
       canvas.width = width;
       canvas.height = height;
       const ctx = canvas.getContext('2d');
-      
       if (ctx) {
           ctx.drawImage(img, 0, 0, width, height);
           resolve(canvas.toDataURL('image/jpeg', quality));
@@ -96,29 +58,49 @@ function deg2rad(deg: number) {
 
 // --- DATA ACCESS METHODS (ASYNC) ---
 export const getItems = async (): Promise<Item[]> => {
-    return (await tx<Item[]>('items', 'readonly', store => store.getAll())) || [];
+    try {
+        const snapshot = await getDocs(collection(db, 'items'));
+        return snapshot.docs.map(doc => doc.data() as Item);
+    } catch(e) {
+        console.error(e);
+        return [];
+    }
 };
 
 export const getShops = async (): Promise<Shop[]> => {
-    return (await tx<Shop[]>('shops', 'readonly', store => store.getAll())) || [];
+    try {
+        const snapshot = await getDocs(collection(db, 'shops'));
+        return snapshot.docs.map(doc => doc.data() as Shop);
+    } catch(e) {
+        console.error(e);
+        return [];
+    }
 };
 
 export const getUsers = async (): Promise<User[]> => {
-    return (await tx<User[]>('users', 'readonly', store => store.getAll())) || [];
+    try {
+        const snapshot = await getDocs(collection(db, 'users'));
+        return snapshot.docs.map(doc => doc.data() as User);
+    } catch(e) {
+        console.error(e);
+        return [];
+    }
 };
 
 export const saveItem = async (item: Item) => {
   try {
-    await tx('items', 'readwrite', store => store.put(item));
+    const cleanItem = Object.fromEntries(Object.entries(item).filter(([_, v]) => v !== undefined));
+    await setDoc(doc(db, 'items', item.id), cleanItem);
   } catch (error) {
     console.error("Failed to save item:", error);
-    alert("Database error");
+    alert("Database error: " + (error as Error).message);
+    throw error;
   }
 };
 
 export const deleteItem = async (itemId: string) => {
   try {
-    await tx('items', 'readwrite', store => store.delete(itemId));
+    await deleteDoc(doc(db, 'items', itemId));
   } catch (error) {
     console.error("Failed to delete item:", error);
   }
@@ -126,7 +108,7 @@ export const deleteItem = async (itemId: string) => {
 
 export const saveShop = async (shop: Shop) => {
   try {
-    await tx('shops', 'readwrite', store => store.put(shop));
+    await setDoc(doc(db, 'shops', shop.id), shop);
   } catch (error) {
     console.error("Failed to save shop:", error);
     alert("Database error");
@@ -135,8 +117,9 @@ export const saveShop = async (shop: Shop) => {
 
 export const deleteShop = async (shopId: string) => {
   try {
-    await tx('shops', 'readwrite', store => store.delete(shopId));
-    // Also delete associated items
+    await deleteDoc(doc(db, 'shops', shopId));
+    
+    // Delete associated items
     const allItems = await getItems();
     const itemsToDelete = allItems.filter(i => i.shopId === shopId);
     for(const item of itemsToDelete) {
@@ -149,9 +132,11 @@ export const deleteShop = async (shopId: string) => {
 
 export const registerUser = async (user: User): Promise<boolean> => {
   try {
-      const users = await getUsers();
-      if (users.find(u => u.email === user.email)) return false;
-      await tx('users', 'readwrite', store => store.put(user));
+      const q = query(collection(db, 'users'), where('email', '==', user.email));
+      const querySnapshot = await getDocs(q);
+      if (!querySnapshot.empty) return false;
+      
+      await setDoc(doc(db, 'users', user.id), user);
       return true;
   } catch (error) {
       console.error("Failed to register user", error);
@@ -161,7 +146,8 @@ export const registerUser = async (user: User): Promise<boolean> => {
 
 export const updateUser = async (user: User) => {
   try {
-    await tx('users', 'readwrite', store => store.put(user));
+    await setDoc(doc(db, 'users', user.id), user);
+    
     const currentUser = getCurrentUser();
     if (currentUser && currentUser.id === user.id) {
       setCurrentUser(user);
@@ -172,11 +158,22 @@ export const updateUser = async (user: User) => {
 };
 
 export const loginUser = async (email: string, password?: string): Promise<User | undefined> => {
-  const users = await getUsers();
-  return users.find(u => u.email === email && u.password === password);
+  try {
+      const q = query(collection(db, 'users'), where('email', '==', email));
+      const snapshot = await getDocs(q);
+      if (!snapshot.empty) {
+          const user = snapshot.docs[0].data() as User;
+          if (user.password === password) {
+              return user;
+          }
+      }
+      return undefined;
+  } catch (e) {
+      console.error(e);
+      return undefined;
+  }
 };
 
-// Helper for session - keeps using localStorage for simple session persistence
 const STORAGE_KEYS = {
   CURRENT_USER: 'shopioo_current_user_v2'
 };
@@ -194,15 +191,13 @@ export const setCurrentUser = (user: User | null) => {
 export const getAddressFromCoords = async (lat: number, lng: number): Promise<string> => {
     try {
       const controller = new AbortController();
-      // Short timeout for primary to fallback quickly if needed
       const timeoutId = setTimeout(() => controller.abort(), 4000);
-
       const response = await fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}`, {
           signal: controller.signal,
           headers: { 'User-Agent': 'Shopioo/1.0' }
       });
       clearTimeout(timeoutId);
-
+      
       if (response.ok) {
         const data = await response.json();
         
@@ -217,7 +212,7 @@ export const getAddressFromCoords = async (lat: number, lng: number): Promise<st
             data.address.town,
             data.address.state
             ];
-
+            
             const parts = rawParts.filter((part): part is string => typeof part === 'string' && part.trim().length > 0);
             
             if (parts.length > 0) {
@@ -229,11 +224,9 @@ export const getAddressFromCoords = async (lat: number, lng: number): Promise<st
         }
       }
     } catch (error) {
-      // Nominatim failed, we will try fallback
       console.warn("Primary geocode failed, trying fallback...");
     }
-
-    // Fallback to BigDataCloud (No API key required for client-side reverse geocoding)
+    
     try {
         const fallbackRes = await fetch(`https://api.bigdatacloud.net/data/reverse-geocode-client?latitude=${lat}&longitude=${lng}&localityLanguage=en`);
         if (fallbackRes.ok) {
@@ -244,7 +237,6 @@ export const getAddressFromCoords = async (lat: number, lng: number): Promise<st
     } catch(e) {
         console.error("Fallback geocode failed", e);
     }
-
-    // Return generic text instead of coordinates if all else fails
+    
     return "Unknown Location";
 };
