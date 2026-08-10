@@ -1,0 +1,38 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Shopioo - AI Product Listing</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <style>
+      body {
+        font-family: 'Inter', sans-serif;
+        background-color: #f3f4f6;
+      }
+      /* Leaflet z-index fix for some environments */
+      .leaflet-pane { z-index: 10 !important; }
+      .leaflet-top, .leaflet-bottom { z-index: 20 !important; }
+    </style>
+
+<link rel="stylesheet" href="/src/index.css">
+<script>
+  window.process = { env: {} };
+  window.global = window;
+</script>
+</head>
+  <body>
+    <script>
+      window.addEventListener('error', (e) => {
+        document.body.innerHTML += '<div style="color:red; background:white; position:fixed; top:0; left:0; width:100%; height:100%; z-index:9999; padding:20px; overflow:auto;"><h1>Error</h1><pre>' + e.message + '\n' + e.filename + ':' + e.lineno + '</pre></div>';
+      });
+      window.addEventListener('unhandledrejection', (e) => {
+        document.body.innerHTML += '<div style="color:red; background:white; position:fixed; top:0; left:0; width:100%; height:100%; z-index:9999; padding:20px; overflow:auto;"><h1>Promise Error</h1><pre>' + (e.reason && e.reason.message ? e.reason.message : e.reason) + '</pre></div>';
+      });
+    </script>
+    <div id="root"></div>
+    <script type="module" src="/src/index.tsx"></script>
+  </body>
+</html>
