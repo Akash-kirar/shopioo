@@ -12,6 +12,28 @@ dist
 dist-ssr
 *.local
 
+# Environment files and credentials. Keep examples tracked, never real values.
+.env
+.env.*
+!.env.example
+!.env.*.example
+**/.env
+**/.env.*
+!**/.env.example
+!**/.env.*.example
+
+# Firebase / Google service credentials and local configuration.
+firebase-applet-config.json
+*-firebase-adminsdk-*.json
+*service-account*.json
+serviceAccountKey.json
+*.pem
+*.p12
+*.key
+
+# Local prompt exports can contain copied credentials or customer data.
+migrated_prompt_history/
+
 # Editor directories and files
 .vscode/*
 !.vscode/extensions.json
