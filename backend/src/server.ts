@@ -1,4 +1,5 @@
 import express from "express";
+import cors from "cors";
 import path from "path";
 import { db } from "./db/index.ts";
 import { users, shops, items } from "./db/schema.ts";
@@ -13,7 +14,14 @@ async function startServer() {
   const app = express();
   const PORT = process.env.PORT || 3000;
 
+  // Configure CORS for the frontend origin
+  app.use(cors({
+    origin: process.env.FRONTEND_URL || '*',
+    credentials: true,
+  }));
+
   app.use(express.json());
+
 
   // API Routes
   app.get("/api/health", (req, res) => {
