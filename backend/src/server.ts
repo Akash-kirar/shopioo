@@ -1,9 +1,9 @@
 import express from "express";
 import cors from "cors";
 import path from "path";
-import { db } from "./db/index.ts";
-import { users, shops, items } from "./db/schema.ts";
-import { requireAuth, AuthRequest } from "./middleware/auth.ts";
+import { db } from "./db/index.js";
+import { users, shops, items } from "./db/schema.js";
+import { requireAuth, AuthRequest } from "./middleware/auth.js";
 import { eq } from "drizzle-orm";
 import { fileURLToPath } from "url";
 
