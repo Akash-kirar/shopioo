@@ -1,17 +1,19 @@
+🛍️ About Shopioo
 
-# Run and deploy your AI Studio app
+Shopioo is a full-stack web application that helps local shops bring their business online. Customers can discover products, explore shops, and interact with local businesses through a simple digital platform.
 
-This contains everything you need to run your app locally.
+I built Shopioo to learn and apply real-world full-stack development, including React, Node.js, Express.js, Firebase, Google Maps, and Gemini AI.
 
-View your app in AI Studio: https://ai.studio/apps/drive/12Aazu_rmkDqGgZZ6U4FC2fHjMRIWj9nY
+The project has a separate frontend and backend, with the frontend deployed on Netlify and the backend deployed on Vercel.
 
-## Run Locally
+🚀 Main Features
 
-**Prerequisites:**  Node.js
+- 🔐 Email & Google Authentication
+- 🛍️ Local shop and product management
+- 📍 Google Maps & location features
+- 🤖 Gemini AI integration
+- 🔥 Firebase integration
+- 📱 Responsive design for mobile and desktop
+- 🌐 Full-stack REST API architecture
 
-
-1. Install dependencies:
-   `npm install`
-2. Set the `GEMINI_API_KEY` in [.env.local](.env.local) to your Gemini API key
-3. Run the app:
-   `npm run dev`
+Shopioo is one of my real-world projects where I focused on building, deploying, and connecting a complete web application.
