@@ -145,6 +145,13 @@ export const registerUser = async (user: User): Promise<boolean> => {
 };
 
 export const updateUser = async (user: User) => {
+  if (user.id === 'guest') {
+    const currentUser = getCurrentUser();
+    if (currentUser && currentUser.id === user.id) {
+      setCurrentUser(user);
+    }
+    return;
+  }
   try {
     await setDoc(doc(db, 'users', user.id), user);
     

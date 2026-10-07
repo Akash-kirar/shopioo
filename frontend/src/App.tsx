@@ -482,89 +482,95 @@ const App: React.FC = () => {
         const reader = new FileReader();
         reader.readAsDataURL(file);
         reader.onload = async () => {
-            const base64Data = (reader.result as string).split(',')[1];
-            const ai = new GoogleGenAI({ apiKey: process.env.API_KEY || 'dummy_key' });
+            try {
+                const base64Data = (reader.result as string).split(',')[1];
+                const ai = new GoogleGenAI({ apiKey: process.env.API_KEY || 'dummy_key' });
 
-            const response = await ai.models.generateContent({
-                model: 'gemini-3-flash-preview',
-                contents: {
-                    parts: [
-                        { inlineData: { mimeType: file.type, data: base64Data } },
-                        { text: `Analyze this product image for a shopping app.
-                                 Return a valid JSON object with these specific fields:
-                                 - category: Must be one of [Mobiles, Fashion, Shoes, Furniture, Beauty, Watches, Electronics, Jewellery, Grocery, Other]. Choose the closest match.
-                                 - productType: A short string identifying the item (e.g. 'Sneaker', 'Sofa', 'Smartphone', 'Dress').
-                                 - color: The dominant color name.
-                                 - synonyms: An array of 5 synonyms for the productType (e.g. if 'Sneaker', return ['Shoes', 'Trainers', 'Footwear', 'Kicks', 'Running Shoes']).
-                                 - visualTags: An array of 5 specific visual descriptors (e.g. 'leather', 'high-top', 'floral', 'modern', 'casual').`
-                        }
-                    ]
-                },
-                config: {
-                    responseMimeType: "application/json"
-                }
-            });
+                const response = await ai.models.generateContent({
+                    model: 'gemini-3-flash-preview',
+                    contents: {
+                        parts: [
+                            { inlineData: { mimeType: file.type, data: base64Data } },
+                            { text: `Analyze this product image for a shopping app.
+                                     Return a valid JSON object with these specific fields:
+                                     - category: Must be one of [Mobiles, Fashion, Shoes, Furniture, Beauty, Watches, Electronics, Jewellery, Grocery, Other]. Choose the closest match.
+                                     - productType: A short string identifying the item (e.g. 'Sneaker', 'Sofa', 'Smartphone', 'Dress').
+                                     - color: The dominant color name.
+                                     - synonyms: An array of 5 synonyms for the productType (e.g. if 'Sneaker', return ['Shoes', 'Trainers', 'Footwear', 'Kicks', 'Running Shoes']).
+                                     - visualTags: An array of 5 specific visual descriptors (e.g. 'leather', 'high-top', 'floral', 'modern', 'casual').`
+                            }
+                        ]
+                    },
+                    config: {
+                        responseMimeType: "application/json"
+                    }
+                });
 
-            const analysis = JSON.parse(response.text);
-            const { category, productType, color, visualTags, synonyms } = analysis;
+                const analysis = JSON.parse(response.text);
+                const { category, productType, color, visualTags, synonyms } = analysis;
 
-            setSearchStatus(`Found: ${productType}`);
-            setDetectedTags([category, color, ...(visualTags || []).slice(0, 2)]);
+                setSearchStatus(`Found: ${productType}`);
+                setDetectedTags([category, color, ...(visualTags || []).slice(0, 2)]);
 
-            const scoredItems = items.map(item => {
-                let score = 0;
-                const shop = shops.find(s => s.id === item.shopId);
-                
-                const itemText = (item.name + ' ' + (item.tag || '') + ' ' + (item.category || '')).toLowerCase();
-                const shopCategory = (shop?.category || '').toLowerCase();
-                const detectedCategory = category.toLowerCase();
-                
-                const isCategoryMatch = shopCategory.includes(detectedCategory) || (item.category && item.category.toLowerCase().includes(detectedCategory));
-                
-                if (isCategoryMatch) {
-                    score += 30;
-                } else {
-                    score -= 10;
-                }
+                const scoredItems = items.map(item => {
+                    let score = 0;
+                    const shop = shops.find(s => s.id === item.shopId);
+                    
+                    const itemText = (item.name + ' ' + (item.tag || '') + ' ' + (item.category || '')).toLowerCase();
+                    const shopCategory = (shop?.category || '').toLowerCase();
+                    const detectedCategory = category.toLowerCase();
+                    
+                    const isCategoryMatch = shopCategory.includes(detectedCategory) || (item.category && item.category.toLowerCase().includes(detectedCategory));
+                    
+                    if (isCategoryMatch) {
+                        score += 30;
+                    } else {
+                        score -= 10;
+                    }
 
-                if (itemText.includes(productType.toLowerCase())) {
-                    score += 20;
-                }
+                    if (itemText.includes(productType.toLowerCase())) {
+                        score += 20;
+                    }
 
-                if (Array.isArray(synonyms)) {
-                    synonyms.forEach((syn: string) => {
-                         if (itemText.includes(syn.toLowerCase())) {
-                             score += 15;
-                         }
-                    });
-                }
+                    if (Array.isArray(synonyms)) {
+                        synonyms.forEach((syn: string) => {
+                             if (itemText.includes(syn.toLowerCase())) {
+                                 score += 15;
+                             }
+                        });
+                    }
 
-                if (Array.isArray(visualTags)) {
-                    visualTags.forEach((tag: string) => {
-                        if (itemText.includes(tag.toLowerCase())) {
-                            score += 5;
-                        }
-                    });
-                }
-                if (itemText.includes(color.toLowerCase())) {
-                    score += 5;
-                }
+                    if (Array.isArray(visualTags)) {
+                        visualTags.forEach((tag: string) => {
+                            if (itemText.includes(tag.toLowerCase())) {
+                                score += 5;
+                            }
+                        });
+                    }
+                    if (itemText.includes(color.toLowerCase())) {
+                        score += 5;
+                    }
 
-                return { ...item, matchScore: score };
-            });
+                    return { ...item, matchScore: score };
+                });
 
-            const results = scoredItems
-                .filter(i => i.matchScore > 0)
-                .sort((a, b) => b.matchScore - a.matchScore)
-                .map(({ matchScore, ...item }) => item);
+                const results = scoredItems
+                    .filter(i => i.matchScore > 0)
+                    .sort((a, b) => b.matchScore - a.matchScore)
+                    .map(({ matchScore, ...item }) => item);
 
-            const finalResults = results.map(item => {
-                 const shop = shops.find(s => s.id === item.shopId);
-                 const dist = (shop && userLocation) ? calculateDistance(userLocation.lat, userLocation.lng, shop.latitude, shop.longitude) : 9999;
-                 return { ...item, distance: dist };
-            });
+                const finalResults = results.map(item => {
+                     const shop = shops.find(s => s.id === item.shopId);
+                     const dist = (shop && userLocation) ? calculateDistance(userLocation.lat, userLocation.lng, shop.latitude, shop.longitude) : 9999;
+                     return { ...item, distance: dist };
+                });
 
-            setFilteredItems(finalResults);
+                setFilteredItems(finalResults);
+            } catch (e) {
+                console.error("Image search AI error:", e);
+                setSearchStatus('Could not identify product. API Key might be invalid or missing.');
+                setFilteredItems([]);
+            }
         };
     } catch (e) {
         console.error("Image search error:", e);
@@ -632,7 +638,17 @@ const App: React.FC = () => {
   const localAds: AdBanner[] = [{ id: 'l1', title: 'Nearby Fresh', subtitle: 'Organic items', image: 'https://images.unsplash.com/photo-1542838132-92c53300491e?auto=format&fit=crop&q=80', type: 'local' }];
 
   if (!currentUser) {
-    return <Auth onLogin={handleLogin} />;
+    return <Auth onLogin={handleLogin} onSkip={() => {
+        const guestUser: User = {
+            id: 'guest',
+            name: 'Guest User',
+            email: 'guest@shopioo.app',
+            role: 'user',
+            likedItems: [],
+            cartItems: []
+        };
+        setUser(guestUser);
+    }} />;
   }
 
   if (isOwnerView) {

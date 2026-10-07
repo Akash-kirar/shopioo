@@ -16,6 +16,7 @@ import { doc, getDoc, setDoc } from 'firebase/firestore';
 
 interface AuthProps {
   onLogin: (user: User) => void;
+  onSkip?: () => void;
 }
 
 const ShopiooLogo = ({ className = "w-12 h-12" }: { className?: string }) => (
@@ -28,7 +29,7 @@ const ShopiooLogo = ({ className = "w-12 h-12" }: { className?: string }) => (
     </svg>
 );
 
-export const Auth: React.FC<AuthProps> = ({ onLogin }) => {
+export const Auth: React.FC<AuthProps> = ({ onLogin, onSkip }) => {
   const [authMode, setAuthMode] = useState<'email' | 'mobile' | 'otp' | 'forgot-password'>('email');
   const [isLogin, setIsLogin] = useState(true);
   const [role, setRole] = useState<UserRole>('user');
@@ -196,7 +197,15 @@ export const Auth: React.FC<AuthProps> = ({ onLogin }) => {
   };
 
   return (
-    <div className="min-h-screen bg-gray-50 flex flex-col justify-center py-12 sm:px-6 lg:px-8">
+    <div className="min-h-screen bg-gray-50 flex flex-col justify-center py-12 sm:px-6 lg:px-8 relative">
+      {onSkip && (
+        <button
+          onClick={onSkip}
+          className="absolute top-4 right-4 sm:top-8 sm:right-8 text-sm font-bold text-gray-500 hover:text-gray-900 transition-colors bg-white px-4 py-2 rounded-full shadow-sm border border-gray-100"
+        >
+          Skip
+        </button>
+      )}
       <div id="recaptcha-container"></div>
       <div className="sm:mx-auto sm:w-full sm:max-w-md animate-in fade-in zoom-in duration-500">
         <div className="flex justify-center">
